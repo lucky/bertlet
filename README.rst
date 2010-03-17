@@ -39,12 +39,10 @@ Example module ``foo.py``::
 Example server runner::
 
     #!/usr/bin/env python
-    from bertlet.server import Server
+    from bertlet import serve
     import foo
 
-    server = Server()
-    server.register(foo)
-    server.run()
+    serve(foo)
     
 It's that simple. Your BERT-RPC_ service is now running on 2133 with the 
 ``foo`` module exposing the ``bar`` function.
