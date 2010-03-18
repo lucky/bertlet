@@ -45,6 +45,10 @@ def generate_error(etype, value, backtrace):
 
 class Request(object):
     def __init__(self, client_connection):
+        """
+        raw_data is the actual bytestring of the request
+        data is the decoded object, e.g. {request, 'foo', 'bar'}
+        """
         self.client_connection = client_connection
         self.raw_data = extract_bert(self.client_connection.conn)
         self.data = bert_decode(self.raw_data)
@@ -70,24 +74,26 @@ class ClientConnection(object):
             return False
 
     def create_response(self, request):
-        req_type, args = request.data[0], request.data[1:]
+        req_type = request.data[0]
 
         if req_type in (call_atom, cast_atom):
-            module, function, function_args = args
-            green = eventlet.spawn(self.server.dispatch, module, function, *function_args)
+            green = eventlet.spawn(self.server.dispatch, request)
 
             if req_type == call_atom:
                 value = green.wait()
                 if isinstance(value, tuple) and value[0] == error_atom:
                     return value
-                return (reply_atom, value)
+                response = (reply_atom, value)
             else:
-                return (noreply_atom,)
+                response = (noreply_atom,)
+
+            return self.server.apply_response_middleware(response)
 
 class Server(object):
 
     def __init__(self, port=2133, host=None, logfile=None, loglevel=logging.DEBUG):
         self.module_registry = {}
+        self.middleware = []
         self.port = port
         self.socket = None
         logging.basicConfig(filename=logfile, level=loglevel)
@@ -95,6 +101,22 @@ class Server(object):
         if host is None:
             host = '127.0.0.1'
         self.host = host
+
+    def apply_request_middleware(self, request):
+        for m in self.middleware:
+            if hasattr(m, 'process_request'):
+                request = m.process_request(request)
+                if not isinstance(request, Request):
+                    return request
+
+        return request
+
+    def apply_response_middleware(self, response):
+        for m in self.middleware:
+            if hasattr(m, 'process_response'):
+                response = m.process_response(response)
+
+        return response
 
     def run(self):
         self.socket = eventlet.listen((self.host, self.port))
@@ -115,8 +137,13 @@ class Server(object):
 
         self.module_registry[name] = module
 
-    def dispatch(self, module_name, function_name, *args):
+    def dispatch(self, request):
+        module_name, function_name, args = request.data[1:]
         try:
+            request = self.apply_request_middleware(request)
+            # Short circuit your mom
+            if not isinstance(request, Request):
+                return request
             return self._dispatch(module_name, function_name, *args)
         except (Exception,), e:
             etype, evalue, etraceback = sys.exc_info()
