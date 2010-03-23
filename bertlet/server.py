@@ -170,7 +170,7 @@ class Server(object):
         module = self.module_registry[module_name]
         function = getattr(module, function_name, None)
 
-        if not callable(function):
+        if not callable(function) or function_name.startswith('_'):
             raise InvalidFunction, "No such function"
 
         return function(*args)
