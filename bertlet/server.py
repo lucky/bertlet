@@ -143,7 +143,7 @@ class Server(object):
     def register(self, module, name=None):
         assert isinstance(module, ModuleType)
         if name is None:
-            name = module.__name__
+            name = module.__name__.split('.')[-1]
 
         self.module_registry[name] = module
 
