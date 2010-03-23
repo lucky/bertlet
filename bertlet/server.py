@@ -50,14 +50,21 @@ class Request(object):
         data is the decoded object, e.g. {request, 'foo', 'bar'}
         """
         self.client_connection = client_connection
-        self.raw_data = extract_bert(self.client_connection.conn)
+        self.raw_data = extract_bert(self.client_connection.socket)
         self.data = bert_decode(self.raw_data)
 
 class ClientConnection(object):
     def __init__(self, address, server):
-        self.conn, address = address
+        self.socket, address = address
         self.ip = address[0]
         self.server = server
+        if self.server.certfile:
+            from eventlet.green.ssl import wrap_socket
+            self.socket = wrap_socket(
+                            self.socket,
+                            server_side=True,
+                            certfile=self.server.certfile,
+                            keyfile=self.server.keyfile)
         logging.info("%s connected" % (address,))
 
     def loop(self):
@@ -68,7 +75,7 @@ class ClientConnection(object):
     def handle_request(self):
         try:
             response = self.create_response(Request(self))
-            self.conn.send(create_berp(response))
+            self.socket.send(create_berp(response))
             return True
         except CloseSession:
             return False
@@ -91,11 +98,14 @@ class ClientConnection(object):
 
 class Server(object):
 
-    def __init__(self, port=2133, host=None, logfile=None, loglevel=logging.DEBUG):
+    def __init__(self, port=2133, host=None, logfile=None, loglevel=logging.DEBUG,
+                       certfile=None, keyfile=None):
         self.module_registry = {}
         self.middleware = []
         self.port = port
         self.socket = None
+        self.certfile = certfile
+        self.keyfile = keyfile
         logging.basicConfig(filename=logfile, level=loglevel)
 
         if host is None:
