@@ -14,6 +14,8 @@ Features
 Bertlet is at version 0.1. Current features supported:
 
  - BERT-RPC_ cast and call
+ - SSL
+ - Middleware
  
 See Roadmap_ for upcoming features.
 
@@ -42,10 +44,11 @@ Example server runner::
     from bertlet import serve
     import foo
 
-    serve(foo)
+    serve(foo, certfile="mycert.crt", keyfile="mycert.key")
     
 It's that simple. Your BERT-RPC_ service is now running on 2133 with the 
-``foo`` module exposing the ``bar`` function.
+``foo`` module exposing the ``bar`` function. **Note**: this example also shows how
+SSL is used.
 
 Roadmap
 -------
