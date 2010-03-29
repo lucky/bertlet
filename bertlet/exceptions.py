@@ -18,5 +18,6 @@ class InvalidModule(ProtocolError):
 class InvalidFunction(ProtocolError):
     error_code = 2
     error_type = 'server'
-    
+
+class InvalidInfo(ProtocolError): pass
 class CloseSession(Exception): pass
