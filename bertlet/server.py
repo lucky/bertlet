@@ -4,6 +4,7 @@ import bert
 import logging
 import sys
 import traceback
+import zlib
 from types import ModuleType
 from bertlet.exceptions import *
 
@@ -15,11 +16,24 @@ cast_atom = bert.Atom('cast')
 reply_atom = bert.Atom('reply')
 noreply_atom = bert.Atom('noreply')
 error_atom = bert.Atom('error')
+info_atom = bert.Atom('info')
+encode_atom = bert.Atom('encoding')
+gzip_atom = bert.Atom('gzip')
 
-def create_berp(value):
+MIN_GZIP_LENGTH = 1024
+
+GZIP_INFO_BERT = (info_atom, encode_atom, [(gzip_atom, )])
+
+def pack_berp(bert):
+    return '%s%s' % (struct.pack('>I', len(bert)), bert)
+
+def create_berp(value, gzip_enabled = False):
     bert = bert_encode(value)
-    berp = '%s%s' % (struct.pack('>I', len(bert)), bert)
-    return berp
+    gzip_info_berp = None
+    if gzip_enabled and len(bert) >= MIN_GZIP_LENGTH:
+        bert = bert_encode((gzip_atom, zlib.compress(bert)))
+        gzip_info_berp = pack_berp(bert_encode(GZIP_INFO_BERT))
+    return (pack_berp(bert), gzip_info_berp)
 
 def extract_bert(socket):
     headers = socket.recv(4)
@@ -58,6 +72,9 @@ class ClientConnection(object):
         self.socket, address = address
         self.ip = address[0]
         self.server = server
+        self.infos = []
+        self.gzip_enabled = False
+        self.gzip_encode = False
         if self.server.certfile:
             from eventlet.green.ssl import wrap_socket
             self.socket = wrap_socket(
@@ -74,11 +91,34 @@ class ClientConnection(object):
 
     def handle_request(self):
         try:
-            response = self.create_response(Request(self))
-            self.socket.send(create_berp(response))
+            request = Request(self)
+            if request.data[0] == gzip_atom:
+                if not self.gzip_encode:
+                    raise ProtocolError, 'gzip encoding without info berp'
+                request.raw_data = zlib.decompress(request.data[1])
+                request.data = bert_decode(request.raw_data)
+
+                self.gzip_encode = False
+            response = self.create_response(request)
+            if response:
+                berp, gzip_info_berp = create_berp(response, self.gzip_enabled)
+                
+                if gzip_info_berp:
+                    self.socket.send(gzip_info_berp)
+                self.socket.send(berp)
             return True
         except CloseSession:
             return False
+
+    def handle_info(self, command, options):
+        if not isinstance(options, list):
+            raise InvalidInfo, 'Options argument must be a list'
+        if command == encode_atom:
+            if options[0][0] != 'gzip':
+                raise InvalidInfo, 'Unknown encode type'
+            self.gzip_encode = True
+            self.gzip_enabled = True
+        self.infos.append((command, options))
 
     def create_response(self, request):
         req_type = request.data[0]
@@ -95,6 +135,10 @@ class ClientConnection(object):
                 response = (noreply_atom,)
 
             return self.server.apply_response_middleware(response)
+        elif req_type == info_atom:
+            self.handle_info(*request.data[1:])
+         
+            
 
 class Server(object):
 
