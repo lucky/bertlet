@@ -19,10 +19,11 @@ error_atom = bert.Atom('error')
 info_atom = bert.Atom('info')
 encode_atom = bert.Atom('encoding')
 gzip_atom = bert.Atom('gzip')
+accept_encoding_atom = bert.Atom('accept_encoding')
 
 MIN_GZIP_LENGTH = 1024
-
 GZIP_INFO_BERT = (info_atom, encode_atom, [(gzip_atom, )])
+GZIP_ACCEPT_BERT = (info_atom, accept_encoding_atom, [(gzip_atom, )])
 
 def pack_berp(bert):
     return '%s%s' % (struct.pack('>I', len(bert)), bert)
@@ -33,6 +34,7 @@ def create_berp(value, gzip_enabled = False):
     if gzip_enabled and len(bert) >= MIN_GZIP_LENGTH:
         bert = bert_encode((gzip_atom, zlib.compress(bert)))
         gzip_info_berp = pack_berp(bert_encode(GZIP_INFO_BERT))
+        logging.debug("Gzipping return value")
     return (pack_berp(bert), gzip_info_berp)
 
 def extract_bert(socket):
@@ -95,6 +97,7 @@ class ClientConnection(object):
             if request.data[0] == gzip_atom:
                 if not self.gzip_encode:
                     raise ProtocolError, 'gzip encoding without info berp'
+                logging.debug("Received gzipped data")
                 request.raw_data = zlib.decompress(request.data[1])
                 request.data = bert_decode(request.raw_data)
 
@@ -114,9 +117,15 @@ class ClientConnection(object):
         if not isinstance(options, list):
             raise InvalidInfo, 'Options argument must be a list'
         if command == encode_atom:
+            logging.debug("Received encode info")
             if options[0][0] != 'gzip':
                 raise InvalidInfo, 'Unknown encode type'
             self.gzip_encode = True
+            self.gzip_enabled = True
+        elif command == accept_encoding_atom:
+            logging.debug("Received accept encoding info")
+            if options[0][0] != 'gzip':
+                raise InvalidInfo, 'Unknown encode type'
             self.gzip_enabled = True
         self.infos.append((command, options))
 
