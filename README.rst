@@ -11,11 +11,15 @@ the entire BERT-RPC_ protocol. See the Roadmap_ for more information.
 Features
 --------
 
-Bertlet is at version 0.1. Current features supported:
+Bertlet is at version 0.2. Current features supported:
 
  - BERT-RPC_ cast and call
  - SSL
  - Middleware
+ - Gzip
+ - Preliminary informational berp support
+ - "Private" functions are not accessible; anything beginning with an underscore
+ - Protocol error handling
  
 See Roadmap_ for upcoming features.
 
@@ -24,6 +28,10 @@ Requirements
 
  - Eventlet_ >= 0.9.5
  - python-bert_
+
+Optional:
+
+ - ssl (either Python >= 2.6 or pyopenssl)
 
 Usage
 -----
@@ -54,31 +62,19 @@ Roadmap
 -------
 
 This roadmap is subject to change. Just like your mom.
-
-0.1
- - Initial Release
- - Basic support for BERT-RPC cast and call
- 
-0.2
- - Protocol error handling
- - pypi distribution
- - Pseudo-private function support (prepended underscore)
  
 0.3
- - Informational BERP support
- 
-0.4
  - Caching directives
  
-0.5
+0.4
  - Streaming binary support
- 
-0.6
- - Middleware support
-    - Include basic auth and gzip middleware
+
+0.5 - ???
+
+0.6 - ???
  
 0.7
- - Multiprocess and daemonization support
+ - Multiprocess support
  
 0.8
  - API stability for 1.0 release
