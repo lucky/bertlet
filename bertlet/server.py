@@ -21,21 +21,11 @@ encode_atom = bert.Atom('encoding')
 gzip_atom = bert.Atom('gzip')
 accept_encoding_atom = bert.Atom('accept_encoding')
 
-MIN_GZIP_LENGTH = 1024
 GZIP_INFO_BERT = (info_atom, encode_atom, [(gzip_atom, )])
 GZIP_ACCEPT_BERT = (info_atom, accept_encoding_atom, [(gzip_atom, )])
 
-def pack_berp(bert):
+def create_berp(bert):
     return '%s%s' % (struct.pack('>I', len(bert)), bert)
-
-def create_berp(value, gzip_enabled = False):
-    bert = bert_encode(value)
-    gzip_info_berp = None
-    if gzip_enabled and len(bert) >= MIN_GZIP_LENGTH:
-        bert = bert_encode((gzip_atom, zlib.compress(bert)))
-        gzip_info_berp = pack_berp(bert_encode(GZIP_INFO_BERT))
-        logging.debug("Gzipping return value")
-    return (pack_berp(bert), gzip_info_berp)
 
 def extract_bert(socket):
     headers = socket.recv(4)
@@ -104,11 +94,16 @@ class ClientConnection(object):
                 self.gzip_encode = False
             response = self.create_response(request)
             if response:
-                berp, gzip_info_berp = create_berp(response, self.gzip_enabled)
-                
+                result_bert = bert_encode(response)
+                gzip_info_berp = None
+                if self.gzip_enabled and \
+                        len(result_bert) >= self.server.gzip_threshold:
+                    result_bert = bert_encode((gzip_atom, zlib.compress(result_bert)))
+                    gzip_info_berp = create_berp(bert_encode(GZIP_INFO_BERT))
+                    logging.debug("Gzipping return value")
                 if gzip_info_berp:
                     self.socket.send(gzip_info_berp)
-                self.socket.send(berp)
+                self.socket.send(create_berp(result_bert))
             return True
         except CloseSession:
             return False
@@ -152,11 +147,12 @@ class ClientConnection(object):
 class Server(object):
 
     def __init__(self, port=2133, host=None, logfile=None, loglevel=logging.DEBUG,
-                       certfile=None, keyfile=None):
+                       certfile=None, keyfile=None, gzip_threshold=2048):
         self.module_registry = {}
         self.middleware = []
         self.port = port
         self.socket = None
+        self.gzip_threshold = gzip_threshold  
         self.certfile = certfile
         self.keyfile = keyfile
         logging.basicConfig(filename=logfile, level=loglevel)
