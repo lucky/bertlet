@@ -132,7 +132,7 @@ class ClientConnection(object):
 
             if req_type == call_atom:
                 value = green.wait()
-                if isinstance(value, tuple) and value[0] == error_atom:
+                if isinstance(value, tuple) and len(value) > 0 and value[0] == error_atom:
                     return value
                 response = (reply_atom, value)
             else:

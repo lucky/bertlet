@@ -1,6 +1,7 @@
 from distutils.core import setup
+from bertlet import __version__
 
-version = '0.2.2'
+version = __version__
 
 setup(
     name='bertlet',
